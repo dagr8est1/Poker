@@ -3,15 +3,12 @@ import random
 import itertools
 from collections import Counter
 
-# Initialize pygame
 pygame.init()
 
-# Screen settings
 WIDTH, HEIGHT = 1000, 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Poker Game")
 
-# Load card images
 CARD_WIDTH, CARD_HEIGHT = 100, 145
 card_images = {}
 suits = ['clubs', 'diamonds', 'hearts', 'spades']
@@ -21,11 +18,10 @@ rank_values = {r: i for i, r in enumerate(ranks, 2)}
 FONT = pygame.font.SysFont(None, 32)
 BIG_FONT = pygame.font.SysFont(None, 48, bold=True)
 
-# Game state variables
 small_blind = 500
 big_blind = 1000
-bet_made = False
-player_is_bb = True
+bet_made = True
+player_is_bb = True # this starts as false because of reset_round
 bot_should_act = player_is_bb
 round_stage = 0
 pot_size = 0
@@ -37,14 +33,14 @@ deck = []
 community_cards = []
 button_locked_until = 0
 if player_is_bb:
-    bet_history = [(1, 500), (0, 1000)]
+    bet_history = [(1, 0.5), (0, 1)]
 else:
-    bet_history = [(0, 500), (1, 1000)]
+    bet_history = [(0, 0.5), (1, 1)]
 show_cards = False
 
 def format_number(n):
     if n >= 1e12:
-        return f"{n:.1e}"  # Scientific notation like 1.3e+12
+        return f"{n:.1e}"
     elif n >= 1_000_000_000:
         return f"{n / 1_000_000_000:.1f}B"
     elif n >= 1_000_000:
@@ -56,7 +52,7 @@ def format_number(n):
     
 def reset_round():
     global small_blind, big_blind, bet_made, round_stage, hands, deck, community_cards, pot_size, player_is_bb, bot_should_act, bet_history, bet_choice, show_cards
-    bet_made = False
+    bet_made = True
     round_stage = 0
     bet_choice = 1
     pot_size = 0
@@ -66,9 +62,9 @@ def reset_round():
     hands = [deck[0:2], deck[2:4]]
     community_cards = deck[4:9]
     if player_is_bb:
-        bet_history = [(1, 500), (0, 1000)]
+        bet_history = [(1, 0.5), (0, 1)]
     else:
-        bet_history = [(0, 500), (1, 1000)]
+        bet_history = [(0, 0.5), (1, 1)]
     show_cards = False
 
 def load_card_images():
@@ -92,7 +88,7 @@ def draw_hand(hand, x_start, y):
 
 def draw_pot_size():
     global pot_size
-    text = FONT.render(f"Pot: {pot_size}", True, (255, 255, 0))
+    text = FONT.render(f"Pot: {format_number(pot_size)}", True, (255, 255, 0))
     text_rect = text.get_rect(center=(WIDTH // 2, 260 + CARD_HEIGHT + 20))
     screen.blit(text, text_rect)
 
@@ -289,7 +285,7 @@ def draw_player_info():
     for player, bet_amount in bet_history:
         if player == 1 and bot_bet < bet_amount:
             bot_bet = bet_amount
-    screen.blit(FONT.render(format_number(bot_bet), True, (255, 255, 255)), (45, 200))
+    screen.blit(FONT.render(format_number(bot_bet*big_blind), True, (255, 255, 255)), (45, 200))
     
     pygame.draw.circle(screen, (255, 255, 255), (70, 590), 60)
     screen.blit(FONT.render("You", True, (0, 0, 0)), (50, 565))
@@ -298,7 +294,7 @@ def draw_player_info():
     for player, bet_amount in bet_history:
         if player == 0 and player_bet < bet_amount:
             player_bet = bet_amount
-    screen.blit(FONT.render(format_number(player_bet), True, (255, 255, 255)), (45, 480))
+    screen.blit(FONT.render(format_number(player_bet*big_blind), True, (255, 255, 255)), (45, 480))
 
 
 def main():
@@ -351,7 +347,6 @@ def main():
                             bet_choice = 1
                         else:
                             button_locked_until = pygame.time.get_ticks() + 3000
-                            #Not big blind scenario
                             if not player_is_bb:
                                 handle_action(action, bet_choice, 0)
                                 pygame.time.delay(1000)
