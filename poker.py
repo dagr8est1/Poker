@@ -36,7 +36,10 @@ hands = []
 deck = []
 community_cards = []
 button_locked_until = 0
-bet_history = []
+if player_is_bb:
+    bet_history = [(1, 500), (0, 1000)]
+else:
+    bet_history = [(0, 500), (1, 1000)]
 show_cards = False
 
 def format_number(n):
@@ -62,10 +65,14 @@ def reset_round():
     deck = get_shuffled_deck()
     hands = [deck[0:2], deck[2:4]]
     community_cards = deck[4:9]
-    bet_history = []
+    if player_is_bb:
+        bet_history = [(1, 500), (0, 1000)]
+    else:
+        bet_history = [(0, 500), (1, 1000)]
     show_cards = False
 
 def load_card_images():
+    global card_images
     for suit in suits:
         for rank in ranks:
             filename = f'cards/{rank}_of_{suit}.png'
@@ -79,10 +86,12 @@ def get_shuffled_deck():
     return deck
 
 def draw_hand(hand, x_start, y):
+    global card_images
     for i, card in enumerate(hand):
         screen.blit(card_images[card], (x_start + i * (CARD_WIDTH + 10), y))
 
 def draw_pot_size():
+    global pot_size
     text = FONT.render(f"Pot: {pot_size}", True, (255, 255, 0))
     text_rect = text.get_rect(center=(WIDTH // 2, 260 + CARD_HEIGHT + 20))
     screen.blit(text, text_rect)
@@ -95,6 +104,7 @@ def draw_card_backs(x_start, y):
         screen.blit(back, (x_start + i * (CARD_WIDTH + 10), y))
 
 def draw_community_cards():
+    global round_stage, card_images
     y_pos = 260
     if round_stage >= 1:
         for i in range(min(3, len(community_cards))):
@@ -115,14 +125,16 @@ def draw_buttons():
     minus_rect = pygame.Rect(WIDTH - 450, HEIGHT - 180, 40, 40)
     plus_rect = pygame.Rect(WIDTH - 400, HEIGHT - 180, 40, 40)
     plus_10_rect = pygame.Rect(WIDTH - 350, HEIGHT - 180, 40, 40)
+    all_in_rect = pygame.Rect(WIDTH - 275, HEIGHT - 180, 80, 40)
+    reset_rect = pygame.Rect(WIDTH - 275, HEIGHT - 130, 80, 40)
 
-    for rect, label in [(minus_10_rect, "-10"), (minus_rect, "-"), (plus_rect, "+"), (plus_10_rect, "+10")]:
+    for rect, label in [(minus_10_rect, "-10"), (minus_rect, "-"), (plus_rect, "+"), (plus_10_rect, "+10"), (all_in_rect, "ALL-IN"), (reset_rect, "RESET")]:
         pygame.draw.rect(screen, (60, 60, 60), rect, border_radius=6)
         text = FONT.render(label, True, (255, 255, 255))
         text_rect = text.get_rect(center=rect.center)
         screen.blit(text, text_rect)
 
-    bet_text = FONT.render(f"{bet_choice} BB ({bet_choice * big_blind:,})", True, (255, 255, 255))
+    bet_text = FONT.render(f"{bet_choice:.1f} BB ({format_number(bet_choice * big_blind)})", True, (255, 255, 255))
     screen.blit(bet_text, (WIDTH - 470, HEIGHT - 130))
 
     for i, action in enumerate(actions):
@@ -138,6 +150,8 @@ def draw_buttons():
     buttons.append(("-", minus_rect))
     buttons.append(("+10", plus_10_rect))
     buttons.append(("-10", minus_10_rect))
+    buttons.append(("ALL-IN", all_in_rect))
+    buttons.append(("RESET", reset_rect))
     return buttons
 
 def handle_action(action, bet_amount, player):
@@ -151,6 +165,7 @@ def handle_action(action, bet_amount, player):
                 if i == 0 and j > highest_opp_bet:
                     highest_opp_bet = j
             bot_stacks += highest_opp_bet
+            player_stacks -= highest_opp_bet
         else:
             player_stacks += pot_size
             highest_opp_bet = 0
@@ -158,6 +173,7 @@ def handle_action(action, bet_amount, player):
                 if i == 1 and j > highest_opp_bet:
                     highest_opp_bet = j
             player_stacks += highest_opp_bet
+            bot_stacks -= highest_opp_bet
         pygame.time.delay(1500)
         reset_round()
         return
@@ -214,10 +230,6 @@ def handle_action(action, bet_amount, player):
         round_stage += 1
         bet_history = []
 
-    if round_stage >= 4:
-        pygame.time.delay(3000)
-        reset_round()
-
 def evaluate_hand(hand):
     values = sorted([rank_values[card[0]] for card in hand], reverse=True)
     suits_list = [card[1] for card in hand]
@@ -273,10 +285,21 @@ def draw_player_info():
     pygame.draw.circle(screen, (255, 255, 255), (70, 110), 60)
     screen.blit(FONT.render("Bot", True, (0, 0, 0)), (50, 85))
     screen.blit(FONT.render(format_number(bot_stacks), True, (0, 0, 120)), (40, 110))
-
+    bot_bet = 0
+    for player, bet_amount in bet_history:
+        if player == 1 and bot_bet < bet_amount:
+            bot_bet = bet_amount
+    screen.blit(FONT.render(format_number(bot_bet), True, (255, 255, 255)), (45, 200))
+    
     pygame.draw.circle(screen, (255, 255, 255), (70, 590), 60)
     screen.blit(FONT.render("You", True, (0, 0, 0)), (50, 565))
     screen.blit(FONT.render(format_number(player_stacks), True, (0, 0, 120)), (40, 590))
+    player_bet = 0
+    for player, bet_amount in bet_history:
+        if player == 0 and player_bet < bet_amount:
+            player_bet = bet_amount
+    screen.blit(FONT.render(format_number(player_bet), True, (255, 255, 255)), (45, 480))
+
 
 def main():
     global bet_choice, button_locked_until, player_is_bb, bot_should_act
@@ -284,18 +307,17 @@ def main():
     running = True
     load_card_images()
     reset_round()
-
     
     while running:
+        if round_stage >= 4:
+            pygame.time.delay(3000)
+            reset_round()
         screen.fill((0, 100, 0))
         draw_player_info()
         draw_hand(hands[0], 250, 500)
         draw_community_cards()
         draw_pot_size()
-        if show_cards:
-            draw_hand(hands[1], 250, 50)
-        else:
-            draw_card_backs(250, 50)
+        draw_card_backs(250, 50)
         
         buttons = draw_buttons()
 
@@ -323,18 +345,22 @@ def main():
                             bet_choice += 10
                         elif action == "-10" and bet_choice > 10:
                             bet_choice -= 10
+                        elif action == "ALL-IN":
+                            bet_choice = player_stacks/big_blind
+                        elif action == "RESET":
+                            bet_choice = 1
                         else:
                             button_locked_until = pygame.time.get_ticks() + 3000
                             #Not big blind scenario
                             if not player_is_bb:
                                 handle_action(action, bet_choice, 0)
                                 pygame.time.delay(1000)
-                                if action == "CALL":
+                                if action == "CALL" or action == "FOLD":
                                     continue
                                 else:
                                     bot_action()
                             else:
-                                if bot_current == "CALL":
+                                if bot_current == "CALL" or bot_current == "FOLD":
                                     continue
                                 else:
                                     handle_action(action, bet_choice, 0)

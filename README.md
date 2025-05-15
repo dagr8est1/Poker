@@ -1,1 +1,3 @@
-# Poker
+Things to add:
+Raising requirements
+
