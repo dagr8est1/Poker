@@ -20,8 +20,8 @@ BIG_FONT = pygame.font.SysFont(None, 48, bold=True)
 
 small_blind = 500
 big_blind = 1000
-bet_made = False
-player_is_bb = True
+bet_made = True
+player_is_bb = True # this starts as false because of reset_round
 bot_should_act = player_is_bb
 round_stage = 0
 pot_size = 0
@@ -33,10 +33,13 @@ deck = []
 community_cards = []
 button_locked_until = 0
 if player_is_bb:
-    bet_history = [(1, small_blind), (0, big_blind)]
+    bet_history = [(1, 0.5), (0, 1)]
 else:
-    bet_history = [(0, small_blind), (1, big_blind)]
+    bet_history = [(0, 0.5), (1, 1)]
 show_cards = False
+pre_flop = True
+card_value_map = {f"card_{i+1}": i + 1 for i in range(5)}
+card_selected = 0
 
 def format_number(n):
     if n >= 1e12:
@@ -51,8 +54,8 @@ def format_number(n):
         return str(n)
     
 def reset_round():
-    global small_blind, big_blind, bet_made, round_stage, hands, deck, community_cards, pot_size, player_is_bb, bot_should_act, bet_history, bet_choice, show_cards
-    bet_made = False
+    global small_blind, big_blind, bet_made, round_stage, hands, deck, community_cards, pot_size, player_is_bb, bot_should_act, bet_history, bet_choice, show_cards, pre_flop, card_selected
+    bet_made = True
     round_stage = 0
     bet_choice = 1
     pot_size = 0
@@ -62,10 +65,12 @@ def reset_round():
     hands = [deck[0:3], deck[3:6]]
     community_cards = deck[6:11]
     if player_is_bb:
-        bet_history = [(1, small_blind), (0, big_blind)]
+        bet_history = [(1, 0.5), (0, 1)]
     else:
-        bet_history = [(0, small_blind), (1, big_blind)]
+        bet_history = [(0, 0.5), (1, 1)]
     show_cards = False
+    pre_flop = True
+    card_selected = 0
 
 def load_card_images():
     global card_images
@@ -97,7 +102,7 @@ def draw_card_backs(x_start, y):
     back.fill((255, 0, 0))
     pygame.draw.rect(back, (255, 255, 255), back.get_rect(), 5)
     for i in range(3):
-        screen.blit(back, (x_start + i * (CARD_WIDTH + 10), y))    
+        screen.blit(back, (x_start + i * (CARD_WIDTH + 10), y))
 
 def draw_buttons():
     global bet_made, round_stage, card_images
@@ -138,30 +143,30 @@ def draw_buttons():
     buttons.append(("-10", minus_10_rect))
     buttons.append(("ALL-IN", all_in_rect))
     buttons.append(("RESET", reset_rect))
-    
+
     y_pos = 260
     if round_stage >= 1:
-        for i in range(min(3, len(community_cards))):
+        for i in range(3):
             x = 300 + i * (CARD_WIDTH + 10)
             rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
-            # screen.blit(card_images[community_cards[i]], rect)
-            buttons.append(("card", rect))
+            screen.blit(card_images[community_cards[i]], rect)
+            buttons.append((f"card_{i+1}", rect))
 
     if round_stage >= 2:
         x = 300 + 3 * (CARD_WIDTH + 10)
         rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
         screen.blit(card_images[community_cards[3]], rect)
-        buttons.append(("card", rect))
+        buttons.append(("card_4", rect))
 
     if round_stage >= 3:
         x = 300 + 4 * (CARD_WIDTH + 10)
         rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
         screen.blit(card_images[community_cards[4]], rect)
-        buttons.append(("card", rect))
+        buttons.append(("card_5", rect))
     return buttons
 
 def handle_action(action, bet_amount, player):
-    global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands
+    global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands, pre_flop
     if action == "FOLD":
         print(f"{player}: FOLD")
         if player == 0:
@@ -185,31 +190,39 @@ def handle_action(action, bet_amount, player):
         return
     elif action == "BET":
         print(f"{player}: {action} {bet_amount} BB")
+        if pre_flop:
+            pre_flop = False
         bet_history.append((player, bet_amount))
         bet_made = True
     elif action == "RAISE":
         print(f"{player}: {action} {bet_amount} BB")
+        if pre_flop:
+            pre_flop = False
         bet_history.append((player, bet_amount))
         bet_made = True
     elif action == "CALL":
         print(f"{player}: CALL {bet_history[-1][1]} BB")
-        pot_size += bet_history[-1][1] * 2 * big_blind
-        player_stacks -= bet_history[-1][1] * big_blind
-        bot_stacks -= bet_history[-1][1] * big_blind
-        if round_stage >= 3:
-            show_cards = True
-            draw_hand(hands[1], 250, 50)
-            if determine_winner() == "player":
-                player_stacks += pot_size
-                print("Player Wins!")
-            elif determine_winner() == "bot":
-                bot_stacks += pot_size
-                print("Bot Wins!")
-            else:
-                player_stacks += pot_size/2
-                bot_stacks += pot_size/2
-                print("Tie!")
-        bet_made = False
+        if pre_flop and len(bet_history) == 2:
+            bet_made = False
+            bet_history.append((player, bet_history[-1][1]))
+        else:
+            pot_size += bet_history[-1][1] * 2 * big_blind
+            player_stacks -= bet_history[-1][1] * big_blind
+            bot_stacks -= bet_history[-1][1] * big_blind
+            if round_stage >= 3:
+                show_cards = True
+                draw_hand(hands[1], 250, 50)
+                if determine_winner() == "player":
+                    player_stacks += pot_size
+                    print("Player Wins!")
+                elif determine_winner() == "bot":
+                    bot_stacks += pot_size
+                    print("Bot Wins!")
+                else:
+                    player_stacks += pot_size/2
+                    bot_stacks += pot_size/2
+                    print("Tie!")
+            bet_made = False
     elif action == "CHECK":
         print(f"{player}: CHECK")
         if (round_stage >= 3 and player == 0 and player_is_bb) or (round_stage >= 3 and player == 1 and not player_is_bb):
@@ -225,8 +238,13 @@ def handle_action(action, bet_amount, player):
                 player_stacks += pot_size/2
                 bot_stacks += pot_size/2
                 print("Tie!")
+        elif pre_flop and len(bet_history) == 3:
+            pre_flop = False
+            pot_size += bet_history[-1][1] * 2 * big_blind
+            player_stacks -= bet_history[-1][1] * big_blind
+            bot_stacks -= bet_history[-1][1] * big_blind
 
-    if action == "CALL":
+    if action == "CALL" and not pre_flop:
         round_stage += 1
         bet_history = []
     elif player == 1 and action == "CHECK" and not player_is_bb:
@@ -285,7 +303,7 @@ def draw_player_info():
     for player, bet_amount in bet_history:
         if player == 1 and bot_bet < bet_amount:
             bot_bet = bet_amount
-    screen.blit(FONT.render(format_number(bot_bet), True, (255, 255, 255)), (45, 200))
+    screen.blit(FONT.render(format_number(bot_bet*big_blind), True, (255, 255, 255)), (45, 200))
     
     pygame.draw.circle(screen, (255, 255, 255), (70, 590), 60)
     screen.blit(FONT.render("You", True, (0, 0, 0)), (50, 565))
@@ -294,11 +312,11 @@ def draw_player_info():
     for player, bet_amount in bet_history:
         if player == 0 and player_bet < bet_amount:
             player_bet = bet_amount
-    screen.blit(FONT.render(format_number(player_bet), True, (255, 255, 255)), (45, 480))
+    screen.blit(FONT.render(format_number(player_bet*big_blind), True, (255, 255, 255)), (45, 480))
 
 
 def main():
-    global bet_choice, button_locked_until, player_is_bb, bot_should_act
+    global bet_choice, button_locked_until, player_is_bb, bot_should_act, card_selected
     clock = pygame.time.Clock()
     running = True
     load_card_images()
@@ -344,18 +362,19 @@ def main():
                             bet_choice = player_stacks/big_blind
                         elif action == "RESET":
                             bet_choice = 1
+                        elif action == "-" or action == "-10":
+                            continue
                         else:
                             button_locked_until = pygame.time.get_ticks() + 3000
-                            #Not big blind scenario
                             if not player_is_bb:
                                 handle_action(action, bet_choice, 0)
                                 pygame.time.delay(1000)
-                                if action == "CALL" or action == "FOLD":
+                                if (action == "CALL" and not pre_flop) or action == "FOLD":
                                     continue
                                 else:
                                     bot_action()
                             else:
-                                if bot_current == "CALL" or bot_current == "FOLD":
+                                if (bot_current == "CALL" and not pre_flop) or bot_current == "FOLD":
                                     continue
                                 else:
                                     handle_action(action, bet_choice, 0)
