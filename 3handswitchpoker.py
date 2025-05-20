@@ -201,6 +201,11 @@ def valid_raise(bet_amount):
     else:
         return False
 
+def choose_all_in():
+    global bet_choice
+    if bet_choice > player_stacks/big_blind:
+        bet_choice = player_stacks/big_blind
+
 def handle_action(action, bet_amount, player):
     global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands, pre_flop, card_selected, card_switched
     if action == "FOLD":
@@ -417,10 +422,12 @@ def main():
                             continue
                         elif action == "+":
                             bet_choice += 1
+                            choose_all_in()
                         elif action == "-" and bet_choice > 1:
                             bet_choice -= 1
                         elif action == "+10":
                             bet_choice += 10
+                            choose_all_in()
                         elif action == "-10" and bet_choice > 10:
                             bet_choice -= 10
                         elif action == "ALL-IN":
