@@ -152,6 +152,16 @@ def draw_buttons():
     buttons.append(("RESET", reset_rect))
     return buttons
 
+def valid_raise(bet_amount):
+    highest_bet = 0
+    for i, j in bet_history:
+        if j > highest_bet:
+            highest_bet = j
+    if bet_amount >= 2*highest_bet or (bet_amount == 3 and highest_bet == 2):
+        return True
+    else:
+        return False
+
 def handle_action(action, bet_amount, player):
     global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands, pre_flop
     if action == "FOLD":
@@ -362,6 +372,22 @@ def main():
                             bet_choice = 1
                         elif action == "-" or action == "-10":
                             continue
+                        elif action == "RAISE" or action  == "BET":
+                            if valid_raise(bet_choice):
+                                button_locked_until = pygame.time.get_ticks() + 3000
+                                if not player_is_bb:
+                                    handle_action(action, bet_choice, 0)
+                                    pygame.time.delay(1000)
+                                    if (action == "CALL" and not pre_flop) or action  == "FOLD":
+                                        continue
+                                    else:
+                                        bot_action()
+                                else:
+                                    if (bot_current == "CALL" and not pre_flop) or action == "FOLD":
+                                        continue
+                                    else:
+                                        handle_action(action, bet_choice, 0)
+                                        bot_should_act = True
                         else:
                             button_locked_until = pygame.time.get_ticks() + 3000
                             if not player_is_bb:
