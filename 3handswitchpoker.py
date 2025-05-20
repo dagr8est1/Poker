@@ -38,8 +38,10 @@ else:
     bet_history = [(0, 0.5), (1, 1)]
 show_cards = False
 pre_flop = True
-card_value_map = {f"card_{i+1}": i + 1 for i in range(5)}
-card_selected = 0
+card_value_map = {f"card_{i}": i for i in range(5)}
+hand_value_map = {f"hand_{i}": i for i in range(5)}
+card_selected = ""
+card_switched = False
 
 def format_number(n):
     if n >= 1e12:
@@ -54,7 +56,7 @@ def format_number(n):
         return str(n)
     
 def reset_round():
-    global small_blind, big_blind, bet_made, round_stage, hands, deck, community_cards, pot_size, player_is_bb, bot_should_act, bet_history, bet_choice, show_cards, pre_flop, card_selected
+    global small_blind, big_blind, bet_made, round_stage, hands, deck, community_cards, pot_size, player_is_bb, bot_should_act, bet_history, bet_choice, show_cards, pre_flop, card_selected, card_switched
     bet_made = True
     round_stage = 0
     bet_choice = 1
@@ -70,7 +72,8 @@ def reset_round():
         bet_history = [(0, 0.5), (1, 1)]
     show_cards = False
     pre_flop = True
-    card_selected = 0
+    card_selected = ""
+    card_switched = False
 
 def load_card_images():
     global card_images
@@ -105,11 +108,24 @@ def draw_card_backs(x_start, y):
         screen.blit(back, (x_start + i * (CARD_WIDTH + 10), y))
 
 def draw_buttons():
+    #includes community cards, interactive buttons, and hand buttons
     global bet_made, round_stage, card_images
+    buttons = []
+    x_start = 175
+    y = 500
+    hand = hands[0]
+    for i in range(len(hand)):
+        x = x_start + i * (CARD_WIDTH + 10)
+        rect = pygame.Rect(x, y, CARD_WIDTH, CARD_HEIGHT)
+        if card_selected == f"hand_{i}":
+            border = pygame.Rect(x-5, y-5, CARD_WIDTH+10, CARD_HEIGHT+10)
+            pygame.draw.rect(screen, (0, 0, 255), border)
+        screen.blit(card_images[hand[i]], rect)
+        buttons.append((f"hand_{i}", rect))
+    
     action_label = "RAISE" if bet_made else "BET"
     check_label = "CALL" if bet_made else "CHECK"
     actions = ['FOLD', check_label, action_label]
-    buttons = []
 
     shift = 100
     minus_10_rect = pygame.Rect(WIDTH - 500 + shift, HEIGHT - 180, 40, 40)
@@ -129,7 +145,7 @@ def draw_buttons():
     screen.blit(bet_text, (WIDTH - 470 + shift, HEIGHT - 130))
 
     for i, action in enumerate(actions):
-        width = 140 if action == 'CHECK' else 120 if action == 'FOLD' else 110
+        width = 140 if action == 'CHECK' else 120 if action == 'FOLD' else 130 if action == "RAISE" else 110 if action == "CALL" else 95
         rect = pygame.Rect(WIDTH - 470 + i * 150, HEIGHT - 70, width, 50)
         pygame.draw.rect(screen, (60, 60, 60), rect, border_radius=6)
         text = BIG_FONT.render(action, True, (255, 255, 255))
@@ -149,24 +165,34 @@ def draw_buttons():
         for i in range(3):
             x = 300 + i * (CARD_WIDTH + 10)
             rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
+            if card_selected == f"card_{i}":
+                border = pygame.Rect(x-5, y_pos-5, CARD_WIDTH+10, CARD_HEIGHT+10)
+                pygame.draw.rect(screen, (0, 0, 255), border)
             screen.blit(card_images[community_cards[i]], rect)
-            buttons.append((f"card_{i+1}", rect))
+            buttons.append((f"card_{i}", rect))
 
     if round_stage >= 2:
         x = 300 + 3 * (CARD_WIDTH + 10)
         rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
+        if card_selected == f"card_{3}":
+            border = pygame.Rect(x-5, y_pos-5, CARD_WIDTH+10, CARD_HEIGHT+10)
+            pygame.draw.rect(screen, (0, 0, 255), border)
         screen.blit(card_images[community_cards[3]], rect)
-        buttons.append(("card_4", rect))
+        buttons.append(("card_3", rect))
 
     if round_stage >= 3:
         x = 300 + 4 * (CARD_WIDTH + 10)
         rect = pygame.Rect(x, y_pos, CARD_WIDTH, CARD_HEIGHT)
+        if card_selected == f"card_{4}":
+            border = pygame.Rect(x-5, y_pos-5, CARD_WIDTH+10, CARD_HEIGHT+10)
+            pygame.draw.rect(screen, (0, 0, 255), border)
         screen.blit(card_images[community_cards[4]], rect)
-        buttons.append(("card_5", rect))
+        buttons.append(("card_4", rect))
+    
     return buttons
 
 def handle_action(action, bet_amount, player):
-    global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands, pre_flop
+    global bet_made, round_stage, pot_size, bot_stacks, player_stacks, bet_history, show_cards, hands, pre_flop, card_selected, card_switched
     if action == "FOLD":
         print(f"{player}: FOLD")
         if player == 0:
@@ -211,7 +237,7 @@ def handle_action(action, bet_amount, player):
             bot_stacks -= bet_history[-1][1] * big_blind
             if round_stage >= 3:
                 show_cards = True
-                draw_hand(hands[1], 250, 50)
+                draw_hand(hands[1], 175, 50)
                 if determine_winner() == "player":
                     player_stacks += pot_size
                     print("Player Wins!")
@@ -227,7 +253,7 @@ def handle_action(action, bet_amount, player):
         print(f"{player}: CHECK")
         if (round_stage >= 3 and player == 0 and player_is_bb) or (round_stage >= 3 and player == 1 and not player_is_bb):
             show_cards = True
-            draw_hand(hands[1], 250, 50)
+            draw_hand(hands[1], 175, 50)
             if determine_winner() == "player":
                 player_stacks += pot_size
                 print("Player Wins!")
@@ -243,16 +269,46 @@ def handle_action(action, bet_amount, player):
             pot_size += bet_history[-1][1] * 2 * big_blind
             player_stacks -= bet_history[-1][1] * big_blind
             bot_stacks -= bet_history[-1][1] * big_blind
+    elif action in card_value_map.keys():
+        if card_switched:
+            pass
+        elif card_selected == action:
+            card_selected = ""
+        elif (card_selected in card_value_map.keys() or card_selected == ""):
+            card_selected = action
+        else:
+            temp = hands[0][hand_value_map.get(card_selected)]
+            hands[0][hand_value_map.get(card_selected)] = community_cards[card_value_map.get(action)]
+            community_cards[card_value_map.get(action)] = temp
+            card_switched = True
+            card_selected = ""
+    elif action in hand_value_map.keys():
+        if card_switched:
+            pass
+        elif card_selected == action:
+            card_selected = ""
+        elif (card_selected in hand_value_map.keys() or card_selected == ""):
+            card_selected = action
+        else:
+            temp = community_cards[card_value_map.get(card_selected)]
+            community_cards[card_value_map.get(card_selected)] = hands[0][hand_value_map.get(action)]
+            hands[0][hand_value_map.get(action)] = temp
+            card_switched = True
+            card_selected = ""
+            
 
     if action == "CALL" and not pre_flop:
         round_stage += 1
         bet_history = []
+        card_switched = False
     elif player == 1 and action == "CHECK" and not player_is_bb:
         round_stage += 1
         bet_history = []
+        card_switched = False
     elif player == 0 and action == "CHECK" and player_is_bb:
         round_stage += 1
         bet_history = []
+        card_switched = False
 
 def evaluate_hand(hand):
     values = sorted([rank_values[card[0]] for card in hand], reverse=True)
@@ -328,9 +384,8 @@ def main():
             reset_round()
         screen.fill((0, 100, 0))
         draw_player_info()
-        draw_hand(hands[0], 250, 500)
         draw_pot_size()
-        draw_card_backs(250, 50)
+        draw_card_backs(175, 50)
         
         buttons = draw_buttons()
 
@@ -364,6 +419,8 @@ def main():
                             bet_choice = 1
                         elif action == "-" or action == "-10":
                             continue
+                        elif action in card_value_map.keys() or action in hand_value_map.keys():
+                            handle_action(action, 0, 0)
                         else:
                             button_locked_until = pygame.time.get_ticks() + 3000
                             if not player_is_bb:

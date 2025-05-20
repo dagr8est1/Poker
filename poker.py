@@ -136,7 +136,7 @@ def draw_buttons():
     screen.blit(bet_text, (WIDTH - 470, HEIGHT - 130))
 
     for i, action in enumerate(actions):
-        width = 140 if action == 'CHECK' else 120 if action == 'FOLD' else 110
+        width = 140 if action == 'CHECK' else 120 if action == 'FOLD' else 130 if action == "RAISE" else 110 if action == "CALL" else 95
         rect = pygame.Rect(WIDTH - 470 + i * 150, HEIGHT - 70, width, 50)
         pygame.draw.rect(screen, (60, 60, 60), rect, border_radius=6)
         text = BIG_FONT.render(action, True, (255, 255, 255))
@@ -198,7 +198,7 @@ def handle_action(action, bet_amount, player):
             bot_stacks -= bet_history[-1][1] * big_blind
             if round_stage >= 3:
                 show_cards = True
-                draw_hand(hands[1], 250, 50)
+                draw_hand(hands[1], 175, 50)
                 if determine_winner() == "player":
                     player_stacks += pot_size
                     print("Player Wins!")
@@ -214,7 +214,7 @@ def handle_action(action, bet_amount, player):
         print(f"{player}: CHECK")
         if (round_stage >= 3 and player == 0 and player_is_bb) or (round_stage >= 3 and player == 1 and not player_is_bb):
             show_cards = True
-            draw_hand(hands[1], 250, 50)
+            draw_hand(hands[1], 175, 50)
             if determine_winner() == "player":
                 player_stacks += pot_size
                 print("Player Wins!")
@@ -325,10 +325,10 @@ def main():
             reset_round()
         screen.fill((0, 100, 0))
         draw_player_info()
-        draw_hand(hands[0], 250, 500)
+        draw_hand(hands[0], 175, 500)
         draw_community_cards()
         draw_pot_size()
-        draw_card_backs(250, 50)
+        draw_card_backs(175, 50)
         
         buttons = draw_buttons()
 
